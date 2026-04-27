@@ -113,7 +113,7 @@ protocol device {
 protocol direct {
     ipv4;
     ipv6;
-    interface "lo", "dummy*", "eth*", "ens*", "eno*";
+    interface "lo", "dummy*", "eth*", "ens*", "eno*", "enp*";
 }
 
 protocol kernel kernel4 {
@@ -141,6 +141,7 @@ emit_prefix_filter "vultr_export_ipv4" "ipv4" "$ANNOUNCE_IPV4_PREFIXES"
 emit_prefix_filter "vultr_export_ipv6" "ipv6" "$ANNOUNCE_IPV6_PREFIXES"
 
 # IPv4 BGP session
+# Password is emitted via printf %s so shell metacharacters are not expanded.
 if [[ -n "$SOURCE_IPV4" ]]; then
     cat <<EOF
 protocol bgp vultr_ipv4 {
@@ -148,8 +149,9 @@ protocol bgp vultr_ipv4 {
     local ${SOURCE_IPV4} as ${LOCAL_ASN};
     neighbor ${VULTR_NEIGHBOR_V4} as ${VULTR_ASN};
     multihop 2;
-    password "${BGP_PASSWORD}";
-
+EOF
+    printf '    password "%s";\n\n' "$BGP_PASSWORD"
+    cat <<EOF
     ipv4 {
         import all;
         export filter vultr_export_ipv4;
@@ -168,8 +170,9 @@ protocol bgp vultr_ipv6 {
     local ${SOURCE_IPV6} as ${LOCAL_ASN};
     neighbor ${VULTR_NEIGHBOR_V6} as ${VULTR_ASN};
     multihop 2;
-    password "${BGP_PASSWORD}";
-
+EOF
+    printf '    password "%s";\n\n' "$BGP_PASSWORD"
+    cat <<EOF
     ipv6 {
         import all;
         export filter vultr_export_ipv6;

@@ -36,15 +36,30 @@ ASN (or your own ASN), and the BGP password from Vultr.
    ./scripts/render-bird-conf.sh vultr-bgp.env > bird.conf
    ```
 
-4. Install BIRD 2 and apply the generated config on the Vultr instance.
+4. Bind your announced prefix to the loopback (or a `dummy0` interface)
+   so the kernel has somewhere to deliver traffic. Without this, BIRD
+   will export the prefix to Vultr but all traffic black-holes locally.
+
+   ```bash
+   # Specific service IPs (recommended for most setups):
+   sudo ip addr add <your-announced-ip>/32 dev lo
+
+   # Or bind the whole prefix to a dummy interface:
+   sudo ip link add dummy0 type dummy && sudo ip link set dummy0 up
+   sudo ip addr add <your-prefix> dev dummy0
+   ```
+
+   See `docs/host-bootstrap.md` for persistence and IPv6 equivalents.
+
+5. Install BIRD 2 and apply the generated config on the Vultr instance.
 
    ```bash
    sudo ./scripts/install-bird2-ubuntu.sh
-   sudo cp bird.conf /etc/bird/bird.conf
+   sudo install -m 0640 -o root -g bird bird.conf /etc/bird/bird.conf
    sudo systemctl restart bird
    ```
 
-5. Verify the session.
+6. Verify the session.
 
    ```bash
    sudo birdc show proto all vultr_ipv4
