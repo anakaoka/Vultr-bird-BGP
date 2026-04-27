@@ -1,0 +1,21 @@
+# Binds announced BGP prefixes to dummy0 so the kernel FIB has somewhere
+# to deliver traffic (BIRD's static reject route is not enough on its own).
+#
+# Install to: /etc/systemd/network/10-dummy0.network
+# Then: systemctl restart systemd-networkd
+#
+# Add one Address= line per IP or prefix you announce.
+# /32 (or /128) for specific service IPs; /24 or wider for the whole block.
+
+[Match]
+Name=dummy0
+
+[Network]
+# ---- IPv4 announced prefixes ------------------------------------------------
+# Replace with your actual IPs / prefix. Add as many Address= lines as needed.
+Address=204.14.240.1/32
+# Address=204.14.240.2/32
+# Address=204.14.240.0/22    # bind the whole block if this host owns all of it
+
+# ---- IPv6 announced prefixes ------------------------------------------------
+# Address=2001:db8:100::1/128

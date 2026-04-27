@@ -1,0 +1,33 @@
+# Static routes for east/west traffic between Vultr instances over the
+# BGP-announced prefix.
+#
+# Install on non-announcing hosts (or announcing hosts that need to reach
+# the other announcer's prefix) at:
+#   /etc/systemd/network/20-east-west.network
+#
+# This may not be required if Vultr is sending you full routes and their
+# RS reflects customer prefixes back — check docs/troubleshooting.md
+# "East / west traffic" for the current decision matrix.
+#
+# Each [Route] block sends traffic for the announced prefix to the
+# Vultr-assigned host public IP of the announcing instance (NOT the
+# anycast/announced IP itself).
+
+[Match]
+# Apply to whichever interface carries the default route.
+# Adjust if your primary interface is not eth0 / ens3 / enp1s0.
+Name=eth0 ens3 enp1s0
+
+[Network]
+# Inherit all other config from the main interface definition;
+# this file only adds the static routes.
+
+# ---- bird.nimble-hi.com announced prefix ------------------------------------
+[Route]
+Destination=204.14.240.0/22
+Gateway=<BIRD_HOST_PUBLIC_IPV4>       # e.g. 203.0.113.10
+
+# ---- bird2.nimble-hi.com announced prefix (if different) --------------------
+# [Route]
+# Destination=<BIRD2_PREFIX>
+# Gateway=<BIRD2_HOST_PUBLIC_IPV4>

@@ -1,4 +1,9 @@
-# Local-only secrets / rendered configs
+# Local-only secrets / rendered configs — never commit these
 vultr-bgp.env
 bird.conf
 *.swp
+
+# Per-host env files with real secrets.
+# The placeholder *.env files under envs/ ARE tracked (no real values).
+# If you create a local copy with real values, name it *.env.local:
+envs/*.env.local

@@ -1,0 +1,7 @@
+# Creates a dummy0 interface used to bind announced BGP prefixes.
+# Install to: /etc/systemd/network/10-dummy0.netdev
+# Then: systemctl restart systemd-networkd
+
+[NetDev]
+Name=dummy0
+Kind=dummy

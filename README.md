@@ -1,15 +1,14 @@
 # Vultr BIRD BGP
 
+[![CI](https://github.com/anakaoka/Vultr-bird-BGP/actions/workflows/ci.yml/badge.svg)](https://github.com/anakaoka/Vultr-bird-BGP/actions/workflows/ci.yml)
+
 BIRD 2 configuration templates and helper scripts for running BGP on Vultr
 Cloud Compute or Bare Metal instances.
 
-This repo is intentionally small: it gives you a repeatable way to render
-`/etc/bird/bird.conf`, install BIRD 2 on Ubuntu/Debian, and verify the
-Vultr BGP session.
+Announced prefix: **`204.14.240.0/22`**
+Management UIs: [bird.nimble-hi.com](https://bird.nimble-hi.com/) · [bird2.nimble-hi.com](https://bird2.nimble-hi.com/)
 
 ## Vultr BGP Reference
-
-Vultr currently documents these peer settings:
 
 | Platform               | Vultr ASN | IPv4 neighbor       | IPv6 neighbor        | Multihop |
 |------------------------|-----------|---------------------|----------------------|----------|
@@ -21,57 +20,50 @@ ASN (or your own ASN), and the BGP password from Vultr.
 
 ## Quick Start
 
-1. Copy the environment example.
+1. Copy or edit the per-host env file.
 
    ```bash
+   # For the Nimble demo hosts:
+   vi envs/bird.nimble-hi.com.env   # fill in ASN, password, IPs
+
+   # Or for a new host:
    cp vultr-bgp.env.example vultr-bgp.env
+   vi vultr-bgp.env
    ```
 
-2. Edit `vultr-bgp.env` with your real instance IP, ASN, BGP password,
-   and prefixes.
-
-3. Render a BIRD 2 configuration.
+2. Bind your announced prefix to the loopback (or `dummy0`) so the
+   kernel has somewhere to deliver traffic — **required before bird
+   will forward anything**.
 
    ```bash
-   ./scripts/render-bird-conf.sh vultr-bgp.env > bird.conf
+   sudo ip addr add 204.14.240.1/32 dev lo
+
+   # Persistent: copy etc/systemd/network/ templates to /etc/systemd/network/
+   # and run: sudo systemctl restart systemd-networkd
    ```
 
-4. Bind your announced prefix to the loopback (or a `dummy0` interface)
-   so the kernel has somewhere to deliver traffic. Without this, BIRD
-   will export the prefix to Vultr but all traffic black-holes locally.
+   See `docs/host-bootstrap.md` and `etc/systemd/network/` for details.
+
+3. Deploy (render → validate → install → reload in one step).
 
    ```bash
-   # Specific service IPs (recommended for most setups):
-   sudo ip addr add <your-announced-ip>/32 dev lo
+   sudo ./scripts/deploy.sh
+   # Or for a specific env file:
+   sudo ./scripts/deploy.sh --env envs/bird.nimble-hi.com.env
 
-   # Or bind the whole prefix to a dummy interface:
-   sudo ip link add dummy0 type dummy && sudo ip link set dummy0 up
-   sudo ip addr add <your-prefix> dev dummy0
+   # Dry-run (no changes, shows diff):
+   ./scripts/deploy.sh --dry-run --env envs/bird.nimble-hi.com.env
    ```
 
-   See `docs/host-bootstrap.md` for persistence and IPv6 equivalents.
-
-5. Install BIRD 2 and apply the generated config on the Vultr instance.
+4. Verify.
 
    ```bash
-   sudo ./scripts/install-bird2-ubuntu.sh
-   sudo install -m 0640 -o root -g bird bird.conf /etc/bird/bird.conf
-   sudo systemctl restart bird
-   ```
-
-6. Verify the session.
-
-   ```bash
-   sudo birdc show proto all vultr_ipv4
-   sudo birdc show proto all vultr_ipv6
-   sudo birdc show route
+   sudo ./scripts/verify-session.sh
    ```
 
 ## Configuration
 
-The renderer supports IPv4, IPv6, or dual-stack sessions.
-
-Required values:
+The renderer supports IPv4-only, IPv6-only, or dual-stack sessions.
 
 | Variable                 | Example              | Notes                                              |
 |--------------------------|----------------------|----------------------------------------------------|
@@ -81,56 +73,63 @@ Required values:
 | `ROUTER_ID`              | `203.0.113.10`       | Usually the instance IPv4 address.                 |
 | `SOURCE_IPV4`            | `203.0.113.10`       | Required for IPv4 BGP.                             |
 | `SOURCE_IPV6`            | `2001:db8::10`       | Required for IPv6 BGP.                             |
-| `ANNOUNCE_IPV4_PREFIXES` | `198.51.100.0/24`    | Space-separated IPv4 prefixes.                     |
+| `ANNOUNCE_IPV4_PREFIXES` | `204.14.240.0/22`    | Space-separated IPv4 prefixes.                     |
 | `ANNOUNCE_IPV6_PREFIXES` | `2001:db8:100::/48`  | Space-separated IPv6 prefixes.                     |
-
-For internet-routable announcements, Vultr notes that IPv4 generally needs
-at least a /24, and IPv6 generally needs at least a /48.
 
 ## East / West Traffic on Vultr
 
-**East/west traffic between your Vultr instances over the BGP-announced
-prefix requires explicit routes to the Vultr-assigned host public IP of
-the announcing instance.** Vultr does not freely route between your VMs
-over the announced address space — peer-to-peer reachability must go via
-the announcing instance's primary Vultr-assigned public IPv4/IPv6.
+Traffic between your own Vultr instances over the BGP-announced prefix
+may require explicit static routes to the Vultr-assigned host public IP
+of the announcing instance (see `docs/troubleshooting.md` for the full
+decision matrix — this changed when Vultr switched us to full route
+exchange in April 2026).
 
-```bash
-# On the *client* VM, send the announced prefix to the announcing VM's
-# Vultr-assigned public IP (replace with your real values):
-sudo ip route add 198.51.100.0/24 via 203.0.113.10
-sudo ip -6 route add 2001:db8:100::/48 via 2001:19f0:1000::abcd
-```
-
-Persist these via `/etc/systemd/network/`, `/etc/network/interfaces.d/`,
-or your config-management tool of choice. Without them, traffic between
-your own Vultr instances over the announced space will be silently
-dropped by Vultr's edge. See `docs/troubleshooting.md` for more.
+Persistent east/west routes live in `etc/systemd/network/20-east-west.network`.
 
 ## Files
 
-| Path                                  | Purpose                                                         |
-|---------------------------------------|-----------------------------------------------------------------|
-| `vultr-bgp.env.example`               | Example values for rendering a config.                          |
-| `scripts/render-bird-conf.sh`         | Generates a BIRD 2 config from an env file.                     |
-| `scripts/install-bird2-ubuntu.sh`     | Installs BIRD 2 and enables the service on Ubuntu/Debian.       |
-| `examples/bird2-vultr-vps.conf`       | Static Cloud Compute / VPS example.                             |
-| `examples/bird2-vultr-bare-metal.conf`| Static Bare Metal example.                                      |
-| `docs/architecture.md`                | Topology, roles, ASN / prefix layout.                           |
-| `docs/inventory.md`                   | Per-host specs / IPs / role table.                              |
-| `docs/setup-runbook.md`               | End-to-end recreation runbook.                                  |
-| `docs/host-bootstrap.md`              | OS-level setup (sysctl, prefix binding, east/west routes).      |
-| `docs/monitoring.md`                  | Web management UIs at `bird.nimble-hi.com` / `bird2.nimble-hi.com`. |
-| `docs/troubleshooting.md`             | Common failure modes (incl. east/west routing).                 |
-| `docs/server-prep.md`                 | Diagnostic commands to run on the host before applying config.  |
+**Scripts**
+
+| Path                              | Purpose                                                      |
+|-----------------------------------|--------------------------------------------------------------|
+| `scripts/deploy.sh`               | Render → validate → install → reload in one command.         |
+| `scripts/verify-session.sh`       | Pass/fail session health check (cron-friendly).              |
+| `scripts/render-bird-conf.sh`     | Render a BIRD 2 config from an env file.                     |
+| `scripts/install-bird2-ubuntu.sh` | Install BIRD 2 on Ubuntu/Debian.                             |
+
+**Config**
+
+| Path                                   | Purpose                                              |
+|----------------------------------------|------------------------------------------------------|
+| `vultr-bgp.env.example`                | Template for a new host env file.                    |
+| `envs/bird.nimble-hi.com.env`          | Placeholder env for the primary announcer.           |
+| `envs/bird2.nimble-hi.com.env`         | Placeholder env for the secondary announcer.         |
+| `envs/bgp.nimble-hi.com.env`           | Notes for the client/verification host.              |
+| `examples/bird2-vultr-vps.conf`        | Static VPS reference config.                         |
+| `examples/bird2-vultr-bare-metal.conf` | Static Bare Metal reference config.                  |
+| `etc/systemd/network/`                 | Templates for prefix binding and east/west routes.   |
+
+**Docs**
+
+| Path                       | Purpose                                                         |
+|----------------------------|-----------------------------------------------------------------|
+| `docs/architecture.md`     | Topology, roles, ASN / prefix layout.                           |
+| `docs/inventory.md`        | Per-host specs / IPs / role table (fill from server-prep.md).   |
+| `docs/setup-runbook.md`    | End-to-end recreation runbook.                                  |
+| `docs/host-bootstrap.md`   | OS-level setup (sysctl, prefix binding, firewall).              |
+| `docs/monitoring.md`       | Web management UIs and hardening checklist.                     |
+| `docs/troubleshooting.md`  | Common failure modes including east/west routing.               |
+| `docs/server-prep.md`      | Diagnostic commands to collect before configuring.              |
+| `docs/changelog.md`        | Dated log of infrastructure changes.                            |
 
 ## Notes
 
-- Do not commit real BGP passwords.
+- Do not commit real BGP passwords. Use `envs/*.env.local` for local
+  overrides (gitignored).
 - If the Vultr instance existed before BGP was enabled on the account,
-  Vultr documents that it must be **rebooted from the control panel**.
-- TCP MD5 is used for BGP authentication, so a simple `telnet` test to
-  port 179 is **not** a reliable connectivity check.
+  it must be **rebooted from the Vultr control panel**.
+- TCP MD5 auth means a wrong password produces silent TCP resets — not
+  a helpful error. `telnet` to port 179 is not a useful test.
 - Bare Metal does not receive the full internet BGP table from Vultr.
 
 ## Sources

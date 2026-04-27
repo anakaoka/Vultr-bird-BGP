@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          shellcheck -S warning \
+            scripts/render-bird-conf.sh \
+            scripts/install-bird2-ubuntu.sh \
+            scripts/deploy.sh \
+            scripts/verify-session.sh
+
+  bird-config-syntax:
+    name: BIRD config syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install BIRD 2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bird2
+
+      - name: Render test config (VPS)
+        env:
+          VULTR_PLATFORM: vps
+          LOCAL_ASN: "64512"
+          BGP_PASSWORD: "test-password-ci"
+          ROUTER_ID: "192.0.2.1"
+          SOURCE_IPV4: "192.0.2.1"
+          SOURCE_IPV6: "2001:db8::1"
+          ANNOUNCE_IPV4_PREFIXES: "198.51.100.0/24"
+          ANNOUNCE_IPV6_PREFIXES: "2001:db8:100::/48"
+        run: |
+          cp vultr-bgp.env.example /tmp/ci.env
+          # Override with CI values via env (render script uses set -a / source)
+          {
+            echo "VULTR_PLATFORM=$VULTR_PLATFORM"
+            echo "LOCAL_ASN=$LOCAL_ASN"
+            echo "BGP_PASSWORD=$BGP_PASSWORD"
+            echo "ROUTER_ID=$ROUTER_ID"
+            echo "SOURCE_IPV4=$SOURCE_IPV4"
+            echo "SOURCE_IPV6=$SOURCE_IPV6"
+            echo "ANNOUNCE_IPV4_PREFIXES=$ANNOUNCE_IPV4_PREFIXES"
+            echo "ANNOUNCE_IPV6_PREFIXES=$ANNOUNCE_IPV6_PREFIXES"
+          } > /tmp/ci.env
+          ./scripts/render-bird-conf.sh /tmp/ci.env > /tmp/bird-vps.conf
+          echo "=== Rendered VPS config ==="
+          cat /tmp/bird-vps.conf
+
+      - name: Validate rendered VPS config
+        run: bird -p -c /tmp/bird-vps.conf
+
+      - name: Render test config (Bare Metal)
+        run: |
+          {
+            echo "VULTR_PLATFORM=bare-metal"
+            echo "LOCAL_ASN=64512"
+            echo "BGP_PASSWORD=test-password-ci"
+            echo "ROUTER_ID=192.0.2.2"
+            echo "SOURCE_IPV4=192.0.2.2"
+            echo "SOURCE_IPV6=2001:db8::2"
+            echo "ANNOUNCE_IPV4_PREFIXES=198.51.100.0/24"
+            echo "ANNOUNCE_IPV6_PREFIXES=2001:db8:200::/48"
+          } > /tmp/ci-bm.env
+          ./scripts/render-bird-conf.sh /tmp/ci-bm.env > /tmp/bird-bm.conf
+
+      - name: Validate rendered Bare Metal config
+        run: bird -p -c /tmp/bird-bm.conf
+
+      - name: Validate static example configs
+        run: |
+          bird -p -c examples/bird2-vultr-vps.conf
+          bird -p -c examples/bird2-vultr-bare-metal.conf
