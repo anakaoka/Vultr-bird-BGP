@@ -65,6 +65,10 @@ Current BGP parameters:
 | Import policy | `import none` |
 | Export policy | `export all` |
 
+After an inbound route refresh on 2026-04-27, `bgp` still reported only two
+received inbound updates from Vultr, both filtered by `import none`. It did not
+show a full routing table or accepted explicit `/32` routes in BIRD.
+
 Redacted live BIRD configuration:
 
 ```bird

@@ -121,6 +121,7 @@ dropped by Vultr's edge. See `docs/troubleshooting.md` for more.
 | `docs/troubleshooting.md`             | Common failure modes (incl. east/west routing).                 |
 | `docs/server-prep.md`                 | Diagnostic commands to run on the host before applying config.  |
 | `docs/recreate-setup.md`              | Live demo topology, host specs, and rebuild checklist.          |
+| `docs/route-policy-notes.md`          | Import-policy notes for full routes and explicit `/32` testing. |
 
 ## Notes
 
