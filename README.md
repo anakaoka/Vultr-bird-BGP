@@ -120,6 +120,7 @@ dropped by Vultr's edge. See `docs/troubleshooting.md` for more.
 | `examples/bird2-vultr-bare-metal.conf`| Static Bare Metal example.                                      |
 | `docs/troubleshooting.md`             | Common failure modes (incl. east/west routing).                 |
 | `docs/server-prep.md`                 | Diagnostic commands to run on the host before applying config.  |
+| `docs/recreate-setup.md`              | Live demo topology, host specs, and rebuild checklist.          |
 
 ## Notes
 
