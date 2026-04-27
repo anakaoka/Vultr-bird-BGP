@@ -72,6 +72,23 @@ Required values:
 For internet-routable announcements, Vultr notes that IPv4 generally needs
 at least a /24, and IPv6 generally needs at least a /48.
 
+## Demo Topology
+
+This demo uses three Vultr servers:
+
+| Host | Role |
+|------|------|
+| `bgp` | Aggregate announcer for the data center. |
+| `bird` | Demo host for more specific per-machine routes. |
+| `bird2` | Demo host for more specific per-machine routes. |
+
+For Vultr BGP, keep at least one server in the target data center
+advertising the aggregate IPv4 route, usually a /24 or larger. That
+aggregate announcement is what brings traffic for the prefix into that
+Vultr location. From there, advertise more specific /32 routes from
+individual machines in the same data center to steer traffic to the
+right host.
+
 ## East / West Traffic on Vultr
 
 **East/west traffic between your Vultr instances over the BGP-announced
