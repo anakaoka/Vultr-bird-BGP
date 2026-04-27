@@ -1,0 +1,4 @@
+# Local-only secrets / rendered configs
+vultr-bgp.env
+bird.conf
+*.swp
