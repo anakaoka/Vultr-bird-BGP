@@ -15,6 +15,18 @@ The aggregate server must advertise the covering route into the Vultr data
 center. Individual machines can then advertise or receive more specific host
 routes, such as `/32` routes, to steer traffic to the correct host.
 
+## Management and Monitoring
+
+The demo hosts expose HTTPS management/monitoring pages:
+
+| Host | URL | Observed response |
+|------|-----|-------------------|
+| `bird` | `https://bird.nimble-hi.com/` | `200 OK`, nginx/1.24.0 on Ubuntu |
+| `bird2` | `https://bird2.nimble-hi.com/` | `200 OK`, nginx/1.24.0 on Ubuntu |
+
+These interfaces are useful for confirming the demo host state while testing
+BGP route advertisements and east-west reachability.
+
 ## Aggregate Server: `bgp`
 
 Observed on 2026-04-27.
