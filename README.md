@@ -101,6 +101,11 @@ dropped by Vultr's edge. See `docs/troubleshooting.md` for more.
 | `scripts/install-bird2-ubuntu.sh`     | Installs BIRD 2 and enables the service on Ubuntu/Debian.       |
 | `examples/bird2-vultr-vps.conf`       | Static Cloud Compute / VPS example.                             |
 | `examples/bird2-vultr-bare-metal.conf`| Static Bare Metal example.                                      |
+| `docs/architecture.md`                | Topology, roles, ASN / prefix layout.                           |
+| `docs/inventory.md`                   | Per-host specs / IPs / role table.                              |
+| `docs/setup-runbook.md`               | End-to-end recreation runbook.                                  |
+| `docs/host-bootstrap.md`              | OS-level setup (sysctl, prefix binding, east/west routes).      |
+| `docs/monitoring.md`                  | Web management UIs at `bird.nimble-hi.com` / `bird2.nimble-hi.com`. |
 | `docs/troubleshooting.md`             | Common failure modes (incl. east/west routing).                 |
 | `docs/server-prep.md`                 | Diagnostic commands to run on the host before applying config.  |
 

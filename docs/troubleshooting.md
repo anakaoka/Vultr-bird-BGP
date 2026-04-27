@@ -54,19 +54,19 @@ Ordered cheapest-to-most-expensive checks:
 
 ## East / West traffic between my Vultr VMs over the announced prefix
 
-This is **expected behaviour** on Vultr: traffic between your own
-instances destined for an IP inside your BGP-announced prefix will
-black-hole unless you add an explicit route to the **Vultr-assigned
-host public IP** of the announcing instance.
+### Historical behaviour (Vultr default-route mode)
+
+When Vultr was sending us only a default route (or limited partials),
+traffic between our own instances destined for an IP inside our
+BGP-announced prefix would black-hole unless we added an explicit
+route to the **Vultr-assigned host public IP** of the announcing
+instance:
 
 ```bash
 # On the *client* VM (the one trying to reach the announced prefix):
-sudo ip route add 198.51.100.0/24 via <ANNOUNCING_VM_HOST_PUBLIC_IPV4>
+sudo ip route add 204.14.240.0/22 via <ANNOUNCING_VM_HOST_PUBLIC_IPV4>
 sudo ip -6 route add 2001:db8:100::/48 via <ANNOUNCING_VM_HOST_PUBLIC_IPV6>
 ```
-
-Persist these in `/etc/systemd/network/`, `/etc/network/interfaces.d/`,
-or your config-management tool of choice.
 
 Symptoms when this is missing:
 
@@ -75,6 +75,73 @@ Symptoms when this is missing:
   out, even though the announcing VM has the address bound.
 - `tcpdump` on the announcing VM shows no packets arriving from the
   client VM at all.
+
+### Current behaviour (Vultr full-routes mode, as of 2026-04-27)
+
+Vultr has switched our session(s) to full route exchange. We now
+expect (and need to verify) that:
+
+- Each announcer receives a BGP route for `204.14.240.0/22` (and any
+  more-specifics) back from Vultr's RS, originating from the *other*
+  announcer.
+- Traffic between announcers to IPs in the prefix follows that BGP
+  route via Vultr — no static workaround needed.
+- `bgp.nimble-hi.com` (a non-announcer that does not run BGP with
+  Vultr) still needs the static workaround unless it joins the BGP
+  mesh.
+
+How to verify on each announcer:
+
+```bash
+# Did we receive 204.14.240.0/22 (and/or /32s) from Vultr's RS?
+sudo birdc show route 204.14.240.0/22 all
+sudo birdc show route for 204.14.240.1 all
+
+# Where is BIRD pointing for that prefix? Look at the BGP next-hop.
+sudo birdc show route 204.14.240.0/22 protocol vultr_ipv4 all
+
+# Does the kernel agree?
+ip route get 204.14.240.1
+```
+
+What we expect to see:
+
+- A route for `204.14.240.0/22` (or each /32 if we announce them
+  individually) in the `vultr_ipv4` protocol with `BGP.next_hop`
+  set to the *other* announcer's source address.
+- Kernel `ip route get` resolves to that BGP next-hop, not via the
+  default route.
+
+If we *don't* see those routes, either:
+
+- Vultr's RS is not reflecting customer prefixes back to the same
+  customer (a common RS policy — open a ticket to confirm).
+- Our import filter is dropping them (we currently use `import all`,
+  so this would be unexpected).
+- The local static `reject` route for `204.14.240.0/22` is winning
+  the BIRD route selection over the BGP route. In that case set the
+  static origin route's preference lower, e.g.
+
+  ```
+  protocol static static_ipv4 {
+      ipv4;
+      route 204.14.240.0/22 reject {
+          preference 50;
+      };
+  }
+  ```
+
+  so BGP-learned more-specifics or equally-specific routes from peers
+  are preferred for forwarding.
+
+### Decision matrix
+
+| Source                          | Vultr full routes? | Workaround needed?                  |
+|---------------------------------|--------------------|-------------------------------------|
+| Other announcer (BGP speaker)   | yes                | No, BGP path should resolve.        |
+| Other announcer (BGP speaker)   | no / partial       | Yes — static via host public IP.    |
+| Non-BGP Vultr VM in same acct   | n/a                | Yes — static via host public IP.    |
+| External internet               | n/a                | No — normal global BGP forwarding.  |
 
 ## Useful commands
 
